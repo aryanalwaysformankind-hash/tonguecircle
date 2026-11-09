@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: tongue-circle-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health/live
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: tongue_circle
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+
+  - type: web
+    name: tongue-circle
+    runtime: static
+    rootDir: frontend
+    buildCommand: corepack yarn install --network-timeout 600000 && corepack yarn build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://tongue-circle-api.onrender.com/api
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

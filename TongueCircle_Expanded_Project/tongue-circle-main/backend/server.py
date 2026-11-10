@@ -14,6 +14,7 @@ load_dotenv(ROOT_DIR / ".env")
 from clerk_auth import clerk_router  # noqa: E402
 from lib.db import client, db, ensure_indexes  # noqa: E402
 from routers.social import router as social_router  # noqa: E402
+from routers.calls import router as calls_router  # noqa: E402
 from routers.translation import router as translation_router  # noqa: E402
 
 logging.basicConfig(
@@ -78,5 +79,6 @@ app.add_middleware(
 
 api_router.include_router(clerk_router)
 api_router.include_router(social_router)
+api_router.include_router(calls_router)
 api_router.include_router(translation_router)
 app.include_router(api_router)

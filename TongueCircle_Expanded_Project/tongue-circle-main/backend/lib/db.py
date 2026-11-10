@@ -32,6 +32,11 @@ INDEXES: dict[str, list[IndexModel]] = {
         ),
         IndexModel([("recipient_user_id", ASCENDING), ("read", ASCENDING)], name="recipient_read"),
     ],
+    "calls": [
+        IndexModel([("id", ASCENDING)], name="call_id", unique=True),
+        IndexModel([("callee_id", ASCENDING), ("status", ASCENDING), ("created_at", DESCENDING)], name="incoming_calls"),
+        IndexModel([("created_at", ASCENDING)], name="call_expiry", expireAfterSeconds=86400),
+    ],
     "typing": [
         IndexModel([("conversation_id", ASCENDING), ("user_id", ASCENDING)], name="conv_user", unique=True),
         IndexModel([("at", ASCENDING)], name="typing_ttl", expireAfterSeconds=3600),

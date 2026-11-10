@@ -3,11 +3,12 @@ import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth, useUser } from "@clerk/react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Bookmark, BookmarkCheck, Languages, MessageCircle, Send, Sparkles } from "lucide-react";
+import { Bookmark, BookmarkCheck, Languages, MessageCircle, Send, Sparkles, Mic, Square } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import TranslateTargetPicker from "@/components/flags/TranslateTargetPicker";
+import CallControls from "@/components/CallControls";
 import { apiGet, apiPost, apiPostStream } from "@/lib/api";
 import { buildStarters } from "@/lib/starters";
 import type { Conversation, DiscoverProfile, Message, Phrase, PhraseCreate, Profile, TypingStatus } from "@/lib/types";
@@ -28,6 +29,8 @@ export default function Messages() {
   const [showOriginal, setShowOriginal] = useState<Record<string, boolean>>({});
   const [translationLanguages, setTranslationLanguages] = useState<Record<string, string>>({});
   const [savedIds, setSavedIds] = useState<Record<string, boolean>>({});
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const endOfMessages = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const lastTypingPing = useRef(0);
@@ -144,6 +147,53 @@ export default function Messages() {
     if (recipientId && draft.trim()) sendMessage.mutate(draft.trim());
   };
 
+  const toggleVoiceRecording = async () => {
+    if (recording) {
+      recorderRef.current?.stop();
+      setRecording(false);
+      return;
+    }
+    if (!conversationId || !recipientId) {
+      toast.error("Open a conversation before recording a voice message.");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      toast.error("Voice recording is not supported in this browser.");
+      return;
+    }
+    try {
+      const media = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(media, mimeType ? { mimeType } : undefined);
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      recorder.onstop = () => {
+        media.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        if (!blob.size) { toast.error("No audio was recorded. Please try again."); return; }
+        if (blob.size > 2_100_000) {
+          toast.error("That recording is too long. Please keep voice messages under 30 seconds.");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            await apiPost<Message>("/messages", { recipient_user_id: recipientId, text: "", message_type: "audio", audio_data: String(reader.result) }, await getToken());
+            await queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+            await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+            toast.success("Voice message sent");
+          } catch { toast.error("Your voice message could not be sent."); }
+        };
+        reader.readAsDataURL(blob);
+      };
+      recorderRef.current = recorder;
+      recorder.start(); setRecording(true);
+      window.setTimeout(() => { if (recorder.state === "recording") { recorder.stop(); setRecording(false); } }, 30_000);
+    } catch {
+      toast.error("Please allow microphone access to record a voice message.");
+    }
+  };
+
   return (
     <div className="space-y-7">
       <header>
@@ -240,6 +290,7 @@ export default function Messages() {
                   onChange={setTargetLanguage}
                   testId="message-translation-language"
                 />
+                {conversationId && <CallControls conversationId={conversationId} partnerName={headerName} />}
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto bg-[#FDFCFB] px-4 py-5 sm:px-6" aria-live="polite" aria-relevant="additions">
@@ -281,9 +332,16 @@ export default function Messages() {
                   return (
                     <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                       <article data-testid={`message-bubble-${message.id}`} className={`max-w-[88%] rounded-2xl px-4 py-3 sm:max-w-[76%] ${mine ? "rounded-br-md bg-[#D9532F] text-white" : "rounded-bl-md bg-[#F0ECE6] text-[#1E1F24]"}`}>
-                        <p data-testid={`message-text-${message.id}`} className="whitespace-pre-wrap break-words text-sm leading-6">
-                          {translations[message.id] && !showOriginal[message.id] ? translations[message.id] : message.text}
-                        </p>
+                        {message.message_type === "audio" && message.audio_data ? (
+                          <div className="min-w-[210px]" data-testid={`message-audio-${message.id}`}>
+                            <p className="mb-2 flex items-center gap-2 text-xs font-semibold"><Mic className="size-4" /> Voice message</p>
+                            <audio controls preload="metadata" className="max-w-full" src={message.audio_data} />
+                          </div>
+                        ) : (
+                          <p data-testid={`message-text-${message.id}`} className="whitespace-pre-wrap break-words text-sm leading-6">
+                            {translations[message.id] && !showOriginal[message.id] ? translations[message.id] : message.text}
+                          </p>
+                        )}
                         <div className={`mt-2 flex items-center justify-between gap-3 ${mine ? "text-white/70" : "text-stone-500"}`}>
                           <time data-testid={`message-time-${message.id}`} className="text-[10px]" dateTime={message.created_at}>
                             {new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(message.created_at))}
@@ -318,6 +376,8 @@ export default function Messages() {
                                   : <><Bookmark className="size-3" aria-hidden="true" /> Save phrase</>}
                               </button>
                             </span>
+                          ) : message.message_type === "audio" ? (
+                            <span className="text-[10px]">Audio</span>
                           ) : (
                             <button
                               type="button"
@@ -370,6 +430,17 @@ export default function Messages() {
                     className="min-h-12 flex-1 resize-y rounded-2xl border border-stone-200 px-4 py-3 text-sm leading-5 outline-none transition-shadow placeholder:text-stone-400 focus:border-[#D9532F] focus:ring-4 focus:ring-[#D9532F]/10"
                   />
                   <Button
+                    type="button"
+                    variant={recording ? "destructive" : "outline"}
+                    disabled={!conversationId || sendMessage.isPending}
+                    onClick={() => void toggleVoiceRecording()}
+                    aria-label={recording ? "Stop voice recording" : "Record voice message"}
+                    title={recording ? "Stop recording" : "Record voice message"}
+                    className="h-12 w-12 shrink-0 rounded-2xl"
+                  >
+                    {recording ? <Square className="size-4" /> : <Mic className="size-4" />}
+                  </Button>
+                  <Button
                     type="submit"
                     disabled={!draft.trim() || sendMessage.isPending}
                     data-testid="message-send-button"
@@ -380,7 +451,7 @@ export default function Messages() {
                   </Button>
                 </div>
                 <p data-testid="message-translation-note" className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-stone-500">
-                  <Sparkles className="size-3" aria-hidden="true" /> Translate any message with one tap.
+                  <Sparkles className="size-3" aria-hidden="true" /> Translate any message with one tap · Voice notes up to 30 seconds.
                 </p>
               </form>
             </>

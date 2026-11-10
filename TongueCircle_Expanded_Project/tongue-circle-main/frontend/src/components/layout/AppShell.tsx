@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth, useClerk, useUser } from "@clerk/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -9,9 +9,12 @@ import {
   LogOut,
   MessageCircle,
   UserRound,
+  Crown,
+  PhoneCall,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 import type { UnreadCount } from "@/lib/types";
 
 interface AppShellProps {
@@ -23,6 +26,7 @@ const navigation = [
   { to: "/messages", label: "Messages", icon: MessageCircle },
   { to: "/phrases", label: "My phrases", icon: Languages },
   { to: "/profile", label: "My profile", icon: UserRound },
+  { to: "/plans", label: "Plans", icon: Crown },
 ];
 
 function Brand() {
@@ -35,6 +39,31 @@ function Brand() {
         tongue<span className="text-[#D9532F]">circle</span>
       </span>
     </NavLink>
+  );
+}
+
+
+type IncomingCall = { id: string; conversation_id: string; call_type: "audio" | "video"; };
+
+function IncomingCallNotice() {
+  const { getToken } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const incomingQuery = useQuery({
+    queryKey: ["incoming-calls"],
+    queryFn: async () => apiGet<IncomingCall[]>("/calls/incoming", await getToken()),
+    refetchInterval: 2500,
+  });
+  const incoming = incomingQuery.data?.[0];
+  if (!incoming || location.pathname === `/messages/${incoming.conversation_id}`) return null;
+  return (
+    <div className="fixed inset-x-3 bottom-24 z-50 mx-auto flex max-w-lg items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-white p-4 shadow-2xl lg:bottom-6">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><PhoneCall className="size-5" /></span>
+        <div><p className="text-sm font-bold">Incoming {incoming.call_type} call</p><p className="text-xs text-stone-500">Open the conversation to answer</p></div>
+      </div>
+      <Button type="button" onClick={() => navigate(`/messages/${incoming.conversation_id}`)} className="rounded-full bg-emerald-700 text-white hover:bg-emerald-800">Open call</Button>
+    </div>
   );
 }
 
@@ -61,7 +90,8 @@ export default function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <div className="min-h-svh bg-[#FAF8F5] text-stone-900">
+    <div className="min-h-svh bg-[#F7F8F6] text-stone-900">
+      <IncomingCallNotice />
       <header className="sticky top-0 z-30 border-b border-stone-200/80 bg-[#FAF8F5]/95 backdrop-blur-xl">
         <div className="mx-auto flex h-[4.5rem] max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:px-8">
           <Brand />

@@ -120,15 +120,20 @@ class TypingStatus(BaseModel):
 
 class MessageCreate(BaseModel):
     recipient_user_id: str = Field(min_length=1, max_length=200)
-    text: str = Field(min_length=1, max_length=1200)
+    text: str = Field(default="", max_length=1200)
+    message_type: Literal["text", "audio"] = "text"
+    audio_data: str | None = Field(default=None, max_length=3_000_000)
 
-    @field_validator("text")
-    @classmethod
-    def strip_text(cls, text: str) -> str:
-        cleaned = text.strip()
-        if not cleaned:
+    @model_validator(mode="after")
+    def validate_message_content(self) -> "MessageCreate":
+        self.text = self.text.strip()
+        if self.message_type == "text" and not self.text:
             raise ValueError("Message cannot be empty")
-        return cleaned
+        if self.message_type == "audio" and (not self.audio_data or not self.audio_data.startswith("data:audio/")):
+            raise ValueError("A valid audio recording is required")
+        if self.message_type == "text" and self.audio_data:
+            raise ValueError("Audio data is only valid for audio messages")
+        return self
 
 
 class MessageResponse(BaseModel):
@@ -136,7 +141,9 @@ class MessageResponse(BaseModel):
     conversation_id: str
     sender_user_id: str
     recipient_user_id: str
-    text: str
+    text: str = ""
+    message_type: Literal["text", "audio"] = "text"
+    audio_data: str | None = None
     created_at: datetime
     read: bool = False
 

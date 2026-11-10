@@ -65,6 +65,8 @@ export interface TypingStatus {
 export interface MessageCreate {
   recipient_user_id: string;
   text: string;
+  message_type?: "text" | "audio";
+  audio_data?: string;
 }
 
 export interface Message {
@@ -73,6 +75,8 @@ export interface Message {
   sender_user_id: string;
   recipient_user_id: string;
   text: string;
+  message_type?: "text" | "audio";
+  audio_data?: string | null;
   created_at: string;
   read: boolean;
 }

@@ -13,6 +13,7 @@ import Messages from "@/pages/Messages";
 import PersonProfile from "@/pages/PersonProfile";
 import Phrases from "@/pages/Phrases";
 import Profile from "@/pages/Profile";
+import Plans from "@/pages/Plans";
 import { beginSession } from "@/lib/session";
 
 function ProtectedPage({ children }: { children: ReactNode }) {
@@ -35,6 +36,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/sign-in/*" element={<Auth mode="sign-in" />} />
       <Route path="/sign-up/*" element={<Auth mode="sign-up" />} />
+      <Route path="/plans" element={<Plans />} />
       <Route path="/" element={<ProtectedPage><Home /></ProtectedPage>} />
       <Route path="/profile" element={<ProtectedPage><Profile /></ProtectedPage>} />
       <Route path="/messages" element={<ProtectedPage><Messages /></ProtectedPage>} />

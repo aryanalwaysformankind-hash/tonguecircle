@@ -299,7 +299,7 @@ async def send_message(
         {"id": conversation_id},
         {
             "$setOnInsert": {"id": conversation_id, "participant_ids": participants},
-            "$set": {"last_message": body.text, "updated_at": now},
+            "$set": {"last_message": body.text if body.message_type == "text" else "🎤 Voice message", "updated_at": now},
         },
         upsert=True,
     )
@@ -309,6 +309,8 @@ async def send_message(
         sender_user_id=sender_id,
         recipient_user_id=recipient_id,
         text=body.text,
+        message_type=body.message_type,
+        audio_data=body.audio_data,
         created_at=now,
     )
     await db.messages.insert_one(message.model_dump())

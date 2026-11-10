@@ -171,3 +171,20 @@
     animation: none;
   }
 }
+
+
+/* TongueCircle launch polish */
+:root {
+  --background: #f7f8f6;
+  --card: #ffffff;
+  --primary: #176b5b;
+  --secondary: #e8f1ed;
+  --ring: #176b5b;
+  --border: #e4e9e5;
+  --radius: 0.9rem;
+}
+body { background: #f7f8f6; }
+::selection { background: #c9e8dc; color: #123c33; }
+button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid rgb(23 107 91 / 38%); outline-offset: 3px; }
+@keyframes soft-glow { 0%, 100% { box-shadow: 0 0 0 0 rgb(23 107 91 / 0%); } 50% { box-shadow: 0 0 0 8px rgb(23 107 91 / 6%); } }

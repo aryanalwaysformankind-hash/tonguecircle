@@ -9,7 +9,7 @@ export default defineConfig({
     alias: [
       { find: "@", replacement: path.resolve(__dirname, "./src") },
       // Keep the icon compatibility adapter used by the existing UI components.
-      { find: /^lucide-react$/, replacement: path.resolve(__dirname, "./src/lib/lucide-react.tsx") },
+     { find: /^lucide-react$/, replacement: path.resolve(__dirname, "./src/lib/lucide_react.tsx") },
       { find: "lucide-react-upstream", replacement: path.resolve(__dirname, "./node_modules/lucide-react") },
     ],
   },

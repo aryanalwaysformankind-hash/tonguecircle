@@ -181,3 +181,7 @@ All API routes are under `/api`:
 - `POST /location/resolve` — convert user-approved coordinates to approximate city/country
 
 All social, messaging, location, phrase, and translation endpoints require a valid Clerk session. Conversation access is restricted to its two participants; phrase records are owner-scoped.
+
+## Native mobile app (Android + iOS)
+
+A React Native + Expo app has been added in `mobile/`. It reuses this FastAPI backend. See [`mobile/README.md`](mobile/README.md) for environment setup and run instructions. The mobile client is an MVP; see its README for features that still require implementation before store release.

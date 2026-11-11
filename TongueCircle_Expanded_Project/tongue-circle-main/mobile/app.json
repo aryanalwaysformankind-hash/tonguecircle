@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "TongueCircle", "slug": "tonguecircle", "scheme": "tonguecircle", "version": "1.0.0", "orientation": "portrait", "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {"supportsTablet": true, "bundleIdentifier": "com.tonguecircle.app"},
+    "android": {"package": "com.tonguecircle.app", "adaptiveIcon": {"backgroundColor": "#6257E8"}},
+    "plugins": ["expo-router", "expo-secure-store"]
+  }
+}

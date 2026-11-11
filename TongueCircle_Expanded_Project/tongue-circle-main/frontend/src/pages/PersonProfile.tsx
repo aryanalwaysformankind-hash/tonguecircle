@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth, useUser } from "@clerk/react";
 import { ArrowLeft, Expand, Languages, MessageCircle, PencilLine, Sparkles } from "lucide-react";
@@ -9,7 +9,7 @@ import Flag from "@/components/flags/Flag";
 import { LocationLine } from "@/components/flags/LanguageChips";
 import TranslateTargetPicker from "@/components/flags/TranslateTargetPicker";
 import PhotoLightbox from "@/components/profile/PhotoLightbox";
-import { apiGet, apiPostStream } from "@/lib/api";
+import { apiGet, apiPost, apiPostStream } from "@/lib/api";
 import { languageInfo } from "@/lib/languages";
 import type { DiscoverProfile } from "@/lib/types";
 
@@ -31,6 +31,7 @@ export default function PersonProfile() {
   const { userId = "" } = useParams();
   const { getToken } = useAuth();
   const { user } = useUser();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [targetLanguage, setTargetLanguage] = useState("English");
@@ -41,6 +42,19 @@ export default function PersonProfile() {
     queryKey: ["profile", userId],
     queryFn: async () => apiGet<DiscoverProfile>(`/profiles/${encodeURIComponent(userId)}`, await getToken()),
     enabled: Boolean(userId),
+  });
+
+  const followStatus = useQuery({
+    queryKey: ["follow-status", userId],
+    queryFn: async () => apiGet<{ following: boolean }>(`/profiles/${encodeURIComponent(userId)}/follow-status`, await getToken()),
+    enabled: Boolean(userId && userId !== user?.id),
+  });
+  const followAction = useMutation({
+    mutationFn: async () => followStatus.data?.following
+      ? apiPost<void>(`/profiles/${encodeURIComponent(userId)}/unfollow`, undefined, await getToken())
+      : apiPost<void>(`/profiles/${encodeURIComponent(userId)}/follow`, undefined, await getToken()),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ["follow-status", userId] }),
+    onError: () => toast.error("Could not update your follow. Please try again."),
   });
 
   const translation = useMutation({
@@ -147,6 +161,11 @@ export default function PersonProfile() {
                 <PencilLine className="mr-2 size-4" aria-hidden="true" /> Edit my profile
               </Link>
             ) : (
+              <>
+              <Button type="button" variant="outline" disabled={followAction.isPending || followStatus.isPending}
+                onClick={() => followAction.mutate()} className="h-11 rounded-full px-5">
+                {followStatus.data?.following ? "Following" : "Follow"}
+              </Button>
               <Button
                 type="button"
                 onClick={() => navigate(`/messages?to=${encodeURIComponent(profile.user_id)}`)}
@@ -155,6 +174,7 @@ export default function PersonProfile() {
               >
                 <MessageCircle className="mr-2 size-4" aria-hidden="true" /> Message {profile.display_name.split(" ")[0]}
               </Button>
+              </>
             )}
           </div>
           {isMe && (

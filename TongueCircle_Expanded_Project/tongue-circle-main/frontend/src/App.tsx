@@ -14,6 +14,7 @@ import PersonProfile from "@/pages/PersonProfile";
 import Phrases from "@/pages/Phrases";
 import Profile from "@/pages/Profile";
 import Plans from "@/pages/Plans";
+import CommunityHub from "@/pages/CommunityHub";
 import { beginSession } from "@/lib/session";
 
 function ProtectedPage({ children }: { children: ReactNode }) {
@@ -43,6 +44,7 @@ function AppRoutes() {
       <Route path="/messages/:conversationId" element={<ProtectedPage><Messages /></ProtectedPage>} />
       <Route path="/people/:userId" element={<ProtectedPage><PersonProfile /></ProtectedPage>} />
       <Route path="/phrases" element={<ProtectedPage><Phrases /></ProtectedPage>} />
+      <Route path="/community" element={<ProtectedPage><CommunityHub /></ProtectedPage>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

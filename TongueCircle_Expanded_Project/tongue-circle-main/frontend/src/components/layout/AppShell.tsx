@@ -10,7 +10,7 @@ import {
   MessageCircle,
   UserRound,
   Crown,
-  PhoneCall,
+  PhoneCall,\n  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet } from "@/lib/api";
@@ -23,7 +23,7 @@ interface AppShellProps {
 
 const navigation = [
   { to: "/", label: "Discover", icon: Compass, end: true },
-  { to: "/messages", label: "Messages", icon: MessageCircle },
+  { to: "/messages", label: "Messages", icon: MessageCircle },\n  { to: "/community", label: "Community", icon: Users },
   { to: "/phrases", label: "My phrases", icon: Languages },
   { to: "/profile", label: "My profile", icon: UserRound },
   { to: "/plans", label: "Plans", icon: Crown },

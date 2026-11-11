@@ -1,0 +1,11 @@
+{
+  "name": "TongueCircle — Language Exchange",
+  "short_name": "TongueCircle",
+  "description": "Meet language partners and practise together.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF8F5",
+  "theme_color": "#2A5B52",
+  "orientation": "portrait",
+  "icons": [{"src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]
+}

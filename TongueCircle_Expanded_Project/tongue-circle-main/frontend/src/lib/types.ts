@@ -19,6 +19,8 @@ export interface ProfileUpsert {
   country_code: string;
   known_languages: LanguageSkill[];
   learning_languages: string[];
+  birth_date?: string | null;
+  sex?: "male" | "female" | null;
 }
 
 export interface Profile extends ProfileUpsert {

@@ -43,6 +43,8 @@ export default function Profile() {
     country_code: "",
     known_languages: [],
     learning_languages: [],
+    birth_date: "",
+    sex: null,
   });
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationStatus, setLocationStatus] = useState("");
@@ -456,6 +458,26 @@ export default function Profile() {
             Add your name, main photo and native language to save.
           </p>
         )}
+        <section className="rounded-[1.7rem] border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
+          <h2 className="font-heading text-xl font-bold">Personal details</h2>
+          <p className="mt-1 text-sm text-stone-600">These details help personalise your community experience.</p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="grid gap-2 text-sm font-semibold text-stone-700">
+              Date of birth
+              <input type="date" value={form.birth_date ?? ""} max={new Date().toISOString().slice(0, 10)}
+                onChange={(event) => setForm((current) => ({ ...current, birth_date: event.target.value || null }))}
+                className="h-11 rounded-xl border border-stone-200 bg-white px-3 font-normal outline-none focus:border-[#2A5B52]" />
+            </label>
+            <label className="grid gap-2 text-sm font-semibold text-stone-700">
+              Sex
+              <select value={form.sex ?? ""} onChange={(event) => setForm((current) => ({ ...current, sex: (event.target.value || null) as "male" | "female" | null }))}
+                className="h-11 rounded-xl border border-stone-200 bg-white px-3 font-normal outline-none focus:border-[#2A5B52]">
+                <option value="">Prefer not to say</option><option value="male">Male</option><option value="female">Female</option>
+              </select>
+            </label>
+          </div>
+          <p className="mt-3 text-xs text-stone-500">Your date of birth and sex are profile details; avoid sharing them publicly unless you choose to.</p>
+        </section>
       </form>
       {profileQuery.data && (
         <p data-testid="profile-saved-status" className="text-right text-xs text-stone-500">

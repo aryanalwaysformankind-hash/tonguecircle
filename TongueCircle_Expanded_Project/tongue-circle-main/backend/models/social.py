@@ -34,6 +34,8 @@ class ProfileUpsert(BaseModel):
     country_code: str = Field(default="", max_length=2, pattern=r"^([a-z]{2})?$")
     known_languages: list[LanguageSkill] = Field(min_length=1, max_length=2)
     learning_languages: list[str] = Field(default_factory=list, max_length=5)
+    birth_date: str | None = Field(default=None, max_length=10)
+    sex: Literal["male", "female"] | None = None
 
     @field_validator("display_name")
     @classmethod

@@ -188,3 +188,12 @@ body { background: #f7f8f6; }
 button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 3px solid rgb(23 107 91 / 38%); outline-offset: 3px; }
 @keyframes soft-glow { 0%, 100% { box-shadow: 0 0 0 0 rgb(23 107 91 / 0%); } 50% { box-shadow: 0 0 0 8px rgb(23 107 91 / 6%); } }
+
+/* Native-feeling mobile shell and safe-area handling */
+html { -webkit-text-size-adjust: 100%; }
+body { overscroll-behavior-y: none; }
+button, a, input, textarea, select { touch-action: manipulation; }
+@media (max-width: 1023px) {
+  input, textarea, select { font-size: 16px; }
+  main { scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+}

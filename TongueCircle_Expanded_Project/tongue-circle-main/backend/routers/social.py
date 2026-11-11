@@ -346,3 +346,104 @@ async def send_message(
     )
     await db.messages.insert_one(message.model_dump())
     return message
+
+
+# Private follow graph: relationship state is available to the two participants;
+# aggregate follower/following counts and lists are deliberately never exposed.
+@router.post("/profiles/{user_id}/follow")
+async def follow_profile(user_id: str, user: dict = Depends(require_user)) -> dict:
+    if user_id == user["user_id"]:
+        raise HTTPException(status_code=400, detail="You cannot follow yourself")
+    target = await db.profiles.find_one({"user_id": user_id}, {"_id": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    await db.follows.update_one(
+        {"follower_id": user["user_id"], "followed_id": user_id},
+        {"$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    return {"following": True}
+
+
+@router.delete("/profiles/{user_id}/follow")
+async def unfollow_profile(user_id: str, user: dict = Depends(require_user)) -> dict:
+    await db.follows.delete_one({"follower_id": user["user_id"], "followed_id": user_id})
+    return {"following": False}
+
+
+@router.get("/profiles/{user_id}/follow-status")
+async def follow_status(user_id: str, user: dict = Depends(require_user)) -> dict:
+    exists = await db.follows.find_one(
+        {"follower_id": user["user_id"], "followed_id": user_id}, {"_id": 1}
+    )
+    return {"following": exists is not None}
+
+
+@router.post("/groups")
+async def create_group(body: dict, user: dict = Depends(require_user)) -> dict:
+    name = str(body.get("name", "")).strip()[:80]
+    language = str(body.get("language", "")).strip()[:40]
+    description = str(body.get("description", "")).strip()[:500]
+    if not name or not language:
+        raise HTTPException(status_code=422, detail="Group name and language are required")
+    group = {
+        "id": str(uuid.uuid4()), "name": name, "language": language,
+        "description": description, "owner_id": user["user_id"],
+        "member_ids": [user["user_id"]], "created_at": datetime.now(timezone.utc),
+    }
+    await db.groups.insert_one(group)
+    return {"id": group["id"], "name": name, "language": language,
+            "description": description, "member_count": 1, "joined": True}
+
+
+@router.get("/groups")
+async def list_groups(user: dict = Depends(require_user)) -> list[dict]:
+    groups = await db.groups.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return [{"id": g["id"], "name": g["name"], "language": g["language"],
+             "description": g.get("description", ""), "member_count": len(g.get("member_ids", [])),
+             "joined": user["user_id"] in g.get("member_ids", [])} for g in groups]
+
+
+@router.post("/groups/{group_id}/join")
+async def join_group(group_id: str, user: dict = Depends(require_user)) -> dict:
+    result = await db.groups.update_one({"id": group_id}, {"$addToSet": {"member_ids": user["user_id"]}})
+    if not result.matched_count:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return {"joined": True}
+
+
+@router.post("/meeting-rooms")
+async def create_meeting_room(body: dict, user: dict = Depends(require_user)) -> dict:
+    title = str(body.get("title", "")).strip()[:100]
+    language = str(body.get("language", "")).strip()[:40]
+    if not title or not language:
+        raise HTTPException(status_code=422, detail="Room title and language are required")
+    room = {"id": str(uuid.uuid4()), "title": title, "language": language,
+            "host_id": user["user_id"], "created_at": datetime.now(timezone.utc),
+            "participant_ids": [user["user_id"]], "status": "open"}
+    await db.meeting_rooms.insert_one(room)
+    return {"id": room["id"], "title": title, "language": language, "participants": 1, "status": "open"}
+
+
+@router.get("/meeting-rooms")
+async def list_meeting_rooms(user: dict = Depends(require_user)) -> list[dict]:
+    rooms = await db.meeting_rooms.find({"status": "open"}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return [{"id": r["id"], "title": r["title"], "language": r["language"],
+             "participants": len(r.get("participant_ids", [])), "status": r["status"],
+             "joined": user["user_id"] in r.get("participant_ids", [])} for r in rooms]
+
+
+@router.post("/meeting-rooms/{room_id}/join")
+async def join_meeting_room(room_id: str, user: dict = Depends(require_user)) -> dict:
+    result = await db.meeting_rooms.update_one(
+        {"id": room_id, "status": "open"}, {"$addToSet": {"participant_ids": user["user_id"]}}
+    )
+    if not result.matched_count:
+        raise HTTPException(status_code=404, detail="Meeting room not found or closed")
+    return {"joined": True}
+
+
+@router.post("/profiles/{user_id}/unfollow")
+async def unfollow_profile_post(user_id: str, user: dict = Depends(require_user)) -> dict:
+    await db.follows.delete_one({"follower_id": user["user_id"], "followed_id": user_id})
+    return {"following": False}

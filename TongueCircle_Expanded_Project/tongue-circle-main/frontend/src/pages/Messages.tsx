@@ -30,6 +30,11 @@ export default function Messages() {
   const [translationLanguages, setTranslationLanguages] = useState<Record<string, string>>({});
   const [savedIds, setSavedIds] = useState<Record<string, boolean>>({});
   const [recording, setRecording] = useState(false);
+  const [draftTranslation, setDraftTranslation] = useState("");
+  const [draftRomanization, setDraftRomanization] = useState("");
+  const [livePreview, setLivePreview] = useState(false);
+  const [voiceTranscripts, setVoiceTranscripts] = useState<Record<string, string>>({});
+  const [transcribingIds, setTranscribingIds] = useState<Record<string, boolean>>({});
   const recorderRef = useRef<MediaRecorder | null>(null);
   const endOfMessages = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -77,6 +82,45 @@ export default function Messages() {
 
   const activeConversation = conversationsQuery.data?.find((item) => item.id === conversationId);
   const recipientId = activeConversation?.other_user_id ?? requestedRecipient ?? "";
+  const presenceQuery = useQuery({
+    queryKey: ["presence", recipientId],
+    queryFn: async () => apiGet<{ online: boolean; last_seen: string | null }>(`/profiles/${encodeURIComponent(recipientId)}/presence`, await getToken()),
+    enabled: Boolean(recipientId && conversationId),
+    refetchInterval: 15_000,
+    retry: false,
+  });
+  useEffect(() => {
+    let alive = true;
+    const ping = async () => {
+      try { await apiPost<void>("/presence/ping", undefined, await getToken()); } catch { /* presence is best effort */ }
+    };
+    void ping();
+    const timer = window.setInterval(() => { if (alive) void ping(); }, 30_000);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, [getToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDraftTranslation("");
+    setDraftRomanization("");
+    const value = draft.trim();
+    if (!livePreview || !value || value.length < 3 || !conversationId) return () => { cancelled = true; };
+    const timer = window.setTimeout(async () => {
+      try {
+        let translated = "";
+        await apiPostStream("/translate", { text: value, target_language: targetLanguage }, await getToken(), (chunk) => {
+          translated += chunk;
+          if (!cancelled) setDraftTranslation(translated);
+        });
+        let romanized = "";
+        await apiPostStream("/translate", { text: value, target_language: targetLanguage, mode: "transliterate" }, await getToken(), (chunk) => {
+          romanized += chunk;
+          if (!cancelled) setDraftRomanization(romanized);
+        });
+      } catch { /* preview is optional; never interrupt composing */ }
+    }, 950);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [draft, targetLanguage, conversationId, getToken, livePreview]);
   const partnerQuery = useQuery({
     queryKey: ["profile", recipientId],
     queryFn: async () => apiGet<DiscoverProfile>(`/profiles/${encodeURIComponent(recipientId)}`, await getToken()),
@@ -171,8 +215,8 @@ export default function Messages() {
         media.getTracks().forEach((track) => track.stop());
         const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
         if (!blob.size) { toast.error("No audio was recorded. Please try again."); return; }
-        if (blob.size > 2_100_000) {
-          toast.error("That recording is too long. Please keep voice messages under 30 seconds.");
+        if (blob.size > 10_000_000) {
+          toast.error("This recording is over the 10 MB upload limit. Try a shorter voice note.");
           return;
         }
         const reader = new FileReader();
@@ -187,8 +231,7 @@ export default function Messages() {
         reader.readAsDataURL(blob);
       };
       recorderRef.current = recorder;
-      recorder.start(); setRecording(true);
-      window.setTimeout(() => { if (recorder.state === "recording") { recorder.stop(); setRecording(false); } }, 30_000);
+      recorder.start(1000); setRecording(true);
     } catch {
       toast.error("Please allow microphone access to record a voice message.");
     }
@@ -281,7 +324,7 @@ export default function Messages() {
                     <h2 data-testid="active-conversation-name" className="truncate font-heading text-lg font-bold">{headerName}</h2>
                   )}
                   <p data-testid="active-conversation-subtitle" className="text-xs text-stone-500">
-                    {partnerTyping ? <span className="font-semibold text-[#2A5B52]">typing…</span> : "Language exchange · translation ready"}
+                    {partnerTyping ? <span className="font-semibold text-[#2A5B52]">typing…</span> : presenceQuery.data?.online ? <span className="font-semibold text-emerald-700">● Online now</span> : presenceQuery.data?.last_seen ? `Last seen ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(presenceQuery.data.last_seen))}` : "Language exchange · translation ready"}
                   </p>
                 </div>
                 <span className="hidden text-xs text-stone-500 sm:inline">Translate into</span>
@@ -336,6 +379,20 @@ export default function Messages() {
                           <div className="min-w-[210px]" data-testid={`message-audio-${message.id}`}>
                             <p className="mb-2 flex items-center gap-2 text-xs font-semibold"><Mic className="size-4" /> Voice message</p>
                             <audio controls preload="metadata" className="max-w-full" src={message.audio_data} />
+                            {voiceTranscripts[message.id] ? (
+                              <p className="mt-2 whitespace-pre-wrap text-xs leading-5">{voiceTranscripts[message.id]}</p>
+                            ) : (
+                              <button type="button" disabled={Boolean(transcribingIds[message.id])} onClick={async () => {
+                                setTranscribingIds((current) => ({ ...current, [message.id]: true }));
+                                try {
+                                  const result = await apiPost<{ text: string }>("/transcribe", { audio_data: message.audio_data }, await getToken());
+                                  setVoiceTranscripts((current) => ({ ...current, [message.id]: result.text || "No speech detected." }));
+                                } catch (error) { toast.error(error instanceof Error ? error.message : "Could not transcribe this voice note."); }
+                                finally { setTranscribingIds((current) => ({ ...current, [message.id]: false })); }
+                              }} className="mt-2 text-xs font-semibold underline disabled:opacity-50">
+                                {transcribingIds[message.id] ? "Transcribing…" : "Transcribe voice note"}
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <p data-testid={`message-text-${message.id}`} className="whitespace-pre-wrap break-words text-sm leading-6">
@@ -343,9 +400,12 @@ export default function Messages() {
                           </p>
                         )}
                         <div className={`mt-2 flex items-center justify-between gap-3 ${mine ? "text-white/70" : "text-stone-500"}`}>
-                          <time data-testid={`message-time-${message.id}`} className="text-[10px]" dateTime={message.created_at}>
-                            {new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(message.created_at))}
-                          </time>
+                          <span className="inline-flex items-center gap-1">
+                            <time data-testid={`message-time-${message.id}`} className="text-[10px]" dateTime={message.created_at}>
+                              {new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(message.created_at))}
+                            </time>
+                            {mine && <span aria-label={message.read ? "Read" : "Sent"} title={message.read ? "Read" : "Sent"} className="text-[10px]">{message.read ? "✓✓ Read" : "✓ Sent"}</span>}
+                          </span>
                           {translations[message.id] ? (
                             <span className="flex items-center gap-3">
                               <button
@@ -450,9 +510,21 @@ export default function Messages() {
                     <span className="hidden sm:inline">{sendMessage.isPending ? "Sending…" : "Send"}</span>
                   </Button>
                 </div>
-                <p data-testid="message-translation-note" className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-stone-500">
-                  <Sparkles className="size-3" aria-hidden="true" /> Translate any message with one tap · Voice notes up to 30 seconds.
-                </p>
+                {(draftTranslation || draftRomanization) && (
+                  <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs text-stone-700">
+                    <p className="mb-1 font-semibold text-emerald-800">Live language preview · {targetLanguage}</p>
+                    {draftTranslation && <p><span className="font-semibold">Translation:</span> {draftTranslation}</p>}
+                    {draftRomanization && <p className="mt-1"><span className="font-semibold">Pronunciation:</span> {draftRomanization}</p>}
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <p data-testid="message-translation-note" className="inline-flex items-center gap-1.5 text-[11px] text-stone-500">
+                    <Sparkles className="size-3" aria-hidden="true" /> Voice notes have no time cap; 10 MB upload limit.
+                  </p>
+                  <button type="button" onClick={() => setLivePreview((value) => !value)} aria-pressed={livePreview} className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${livePreview ? "bg-emerald-100 text-emerald-800" : "bg-stone-100 text-stone-600"}`}>
+                    {livePreview ? "Live preview on" : "Turn on live preview"}
+                  </button>
+                </div>
               </form>
             </>
           ) : (

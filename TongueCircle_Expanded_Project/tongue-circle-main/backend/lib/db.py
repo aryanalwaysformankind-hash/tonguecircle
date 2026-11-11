@@ -41,6 +41,10 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("conversation_id", ASCENDING), ("user_id", ASCENDING)], name="conv_user", unique=True),
         IndexModel([("at", ASCENDING)], name="typing_ttl", expireAfterSeconds=3600),
     ],
+    "presence": [
+        IndexModel([("user_id", ASCENDING)], name="presence_user", unique=True),
+        IndexModel([("last_seen", ASCENDING)], name="presence_last_seen"),
+    ],
     "phrases": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
         IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)], name="user_created"),

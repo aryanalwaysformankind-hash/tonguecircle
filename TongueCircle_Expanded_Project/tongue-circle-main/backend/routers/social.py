@@ -35,6 +35,37 @@ def _utc_datetime(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
+PRESENCE_ONLINE_SECONDS = 75
+
+
+@router.post("/presence/ping", status_code=204)
+async def ping_presence(user: dict = Depends(require_user)) -> None:
+    now = datetime.now(timezone.utc)
+    await db.presence.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"last_seen": now}},
+        upsert=True,
+    )
+
+
+@router.get("/profiles/{user_id}/presence")
+async def get_presence(user_id: str, user: dict = Depends(require_user)) -> dict:
+    # Only conversation partners can see presence; profile discovery remains private.
+    conversation = await db.conversations.find_one(
+        {"participant_ids": {"$all": [user["user_id"], user_id]}}, {"_id": 1}
+    )
+    if not conversation:
+        raise HTTPException(status_code=403, detail="Presence is available to conversation partners")
+    record = await db.presence.find_one({"user_id": user_id}, {"_id": 0})
+    if not record:
+        return {"online": False, "last_seen": None}
+    last_seen = _utc_datetime(record["last_seen"])
+    return {
+        "online": last_seen >= datetime.now(timezone.utc) - timedelta(seconds=PRESENCE_ONLINE_SECONDS),
+        "last_seen": last_seen,
+    }
+
+
 @router.get("/profile/me", response_model=ProfileResponse | None)
 async def get_my_profile(user: dict = Depends(require_user)):
     profile = await db.profiles.find_one({"user_id": user["user_id"]}, {"_id": 0})

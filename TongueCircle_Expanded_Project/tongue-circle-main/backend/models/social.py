@@ -122,7 +122,7 @@ class MessageCreate(BaseModel):
     recipient_user_id: str = Field(min_length=1, max_length=200)
     text: str = Field(default="", max_length=1200)
     message_type: Literal["text", "audio"] = "text"
-    audio_data: str | None = Field(default=None, max_length=3_000_000)
+    audio_data: str | None = Field(default=None, max_length=14_000_000)
 
     @model_validator(mode="after")
     def validate_message_content(self) -> "MessageCreate":
@@ -160,7 +160,9 @@ class ConversationResponse(BaseModel):
 
 class TranslateRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1200)
-    target_language: str = Field(min_length=1, max_length=40)
+    target_language: str = Field(default="English", min_length=1, max_length=40)
+    mode: Literal["translate", "transliterate"] = "translate"
+    source_language: str | None = Field(default=None, max_length=40)
 
     @field_validator("text", "target_language")
     @classmethod

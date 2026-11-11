@@ -1,4 +1,7 @@
+import base64
+import binascii
 import json
+import re
 import logging
 import os
 from collections.abc import AsyncIterator
@@ -100,3 +103,43 @@ async def translate_text(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/transcribe")
+async def transcribe_audio(body: dict, user: dict = Depends(require_user)) -> dict:
+    """Transcribe a voice note using the configured OpenAI audio model."""
+    del user
+    data_url = body.get("audio_data")
+    if not isinstance(data_url, str) or len(data_url) > 14_000_000:
+        raise HTTPException(status_code=413, detail="Voice note is too large to transcribe")
+    match = re.fullmatch(r"data:(audio/[a-zA-Z0-9.+-]+(?:;codecs=[a-zA-Z0-9.+-]+)?);base64,([A-Za-z0-9+/=]+)", data_url)
+    if not match:
+        raise HTTPException(status_code=422, detail="A valid audio recording is required")
+    mime_type, encoded = match.groups()
+    try:
+        audio_bytes = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=422, detail="Audio data is invalid")
+    if not audio_bytes or len(audio_bytes) > 10_000_000:
+        raise HTTPException(status_code=413, detail="Voice note must be smaller than 10 MB")
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Transcription is not configured. Add OPENAI_API_KEY to the backend environment.")
+    suffix = "webm" if "webm" in mime_type else "m4a" if "mp4" in mime_type else "wav" if "wav" in mime_type else "ogg"
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(90.0, connect=10.0)) as client:
+            response = await client.post(
+                "https://api.openai.com/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                data={"model": os.environ.get("OPENAI_TRANSCRIPTION_MODEL", "whisper-1")},
+                files={"file": (f"voice-note.{suffix}", audio_bytes, mime_type)},
+            )
+        if response.status_code >= 400:
+            error = _translation_error(response.status_code, response.text)
+            raise error
+        result = response.json()
+        return {"text": str(result.get("text", "")).strip()}
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="Transcription took too long. Please try again.") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=503, detail="Transcription service is temporarily unavailable") from exc

@@ -358,10 +358,9 @@ export default function Home() {
                       <div className="mt-1 flex items-center gap-1.5 text-xs text-white/90">
                         <MapPin className="size-3.5" />
                         <LocationLine
-  profile={profile}
-  testId={`discover-location-${profile.user_id}`}
-  className="..."
-/>
+                          profile={profile}
+                          className="text-xs text-white/90"
+                        />
                       </div>
                     </div>
 
